@@ -45,6 +45,7 @@ module Cardano.Api.ProtocolParameters (
     toShelleyUpdate,
     toLedgerPParams,
     fromShelleyPParams,
+    toShelleyPParams,
     fromShelleyPParamsUpdate,
     fromShelleyProposedPPUpdates,
     fromShelleyUpdate,
