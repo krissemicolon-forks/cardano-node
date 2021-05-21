@@ -1138,18 +1138,22 @@ instance IsCardanoEra era => SerialiseAsCBOR (TxBody era) where
 
         -- Use the same derialisation impl, but at different types:
         ShelleyEra -> deserialiseShelleyBasedTxBody
-                        (ShelleyTxBody ShelleyBasedEraShelley) bs
+                        (\body scripts mdata
+                            -> ShelleyTxBody ShelleyBasedEraShelley body scripts mdata mempty) bs
         AllegraEra -> deserialiseShelleyBasedTxBody
-                        (ShelleyTxBody ShelleyBasedEraAllegra) bs
+                        (\body scripts mdata
+                            -> ShelleyTxBody ShelleyBasedEraAllegra body scripts mdata mempty) bs
         MaryEra    -> deserialiseShelleyBasedTxBody
-                        (ShelleyTxBody ShelleyBasedEraMary) bs
+                        (\body scripts mdata
+                            -> ShelleyTxBody ShelleyBasedEraMary body scripts mdata mempty) bs
         AlonzoEra  -> deserialiseShelleyBasedTxBody
-                        (ShelleyTxBody ShelleyBasedEraAlonzo) bs
+                        (\body scripts mdata
+                            -> ShelleyTxBody ShelleyBasedEraAlonzo body scripts mdata mempty) bs
 
 
 -- | The serialisation format for the different Shelley-based eras are not the
 -- same, but they can be handled generally with one overloaded implementation.
--- TODO: Alonzo, serialise the redeemer map
+-- TODO: Alonzo, Include the redeemer map
 serialiseShelleyBasedTxBody :: forall txbody script metadata.
                                 (ToCBOR txbody, ToCBOR script, ToCBOR metadata)
                             => txbody
@@ -1163,11 +1167,11 @@ serialiseShelleyBasedTxBody txbody txscripts txmetadata =
      <> CBOR.toCBOR txscripts
      <> CBOR.encodeNullMaybe CBOR.toCBOR txmetadata
 
-deserialiseShelleyBasedTxBody :: forall txbody script metadata pair rdmrptrs.
+deserialiseShelleyBasedTxBody :: forall txbody script metadata pair.
                                 (FromCBOR (CBOR.Annotator txbody),
                                  FromCBOR (CBOR.Annotator script),
                                  FromCBOR (CBOR.Annotator metadata))
-                              => (txbody -> [script] -> Maybe metadata -> rdmrptrs -> pair)
+                              => (txbody -> [script] -> Maybe metadata -> pair)
                               -> ByteString
                               -> Either CBOR.DecoderError pair
 deserialiseShelleyBasedTxBody mkTxBody bs =
@@ -1187,7 +1191,6 @@ deserialiseShelleyBasedTxBody mkTxBody bs =
           (CBOR.runAnnotator txbody fbs)
           (map (`CBOR.runAnnotator` fbs) txscripts)
           (CBOR.runAnnotator <$> txmetadata <*> pure fbs)
-          (error "deserialiseShelleyBasedTxBody: Redeemer pointer map")
 
 instance IsCardanoEra era => HasTextEnvelope (TxBody era) where
     textEnvelopeType _ =
