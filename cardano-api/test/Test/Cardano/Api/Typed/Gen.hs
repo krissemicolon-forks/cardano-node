@@ -526,6 +526,7 @@ genTxBodyContent era = do
     , txValidityRange = validityRange
     , txMetadata = txMd
     , txAuxScripts = auxScripts
+    , txReqScriptSigs = TxRequiredScriptSignaturesNone --TODO: Alonzo era: Generate witness key hashes
     , txWithdrawals = withdrawals
     , txCertificates = certs
     , txUpdateProposal = updateProposal

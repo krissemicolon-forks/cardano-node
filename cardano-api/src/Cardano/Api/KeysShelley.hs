@@ -27,6 +27,7 @@ module Cardano.Api.KeysShelley (
     GenesisDelegateKey,
     GenesisDelegateExtendedKey,
     GenesisUTxOKey,
+    WitnessKey,
 
     -- * Data family instances
     AsType(..),
@@ -52,8 +53,8 @@ import qualified Cardano.Ledger.Crypto as Shelley (DSIGN)
 import           Ouroboros.Consensus.Shelley.Protocol.Crypto (StandardCrypto)
 import qualified Shelley.Spec.Ledger.Keys as Shelley
 
-import           Cardano.Api.Hash
 import           Cardano.Api.HasTypeProxy
+import           Cardano.Api.Hash
 import           Cardano.Api.Key
 import           Cardano.Api.SerialiseBech32
 import           Cardano.Api.SerialiseCBOR
@@ -1094,6 +1095,93 @@ instance CastSigningKeyRole GenesisUTxOKey PaymentKey where
     castSigningKey (GenesisUTxOSigningKey skey) =
       PaymentSigningKey skey
 
+--
+-- Plutus script witness keys
+--
+
+data WitnessKey
+
+instance HasTypeProxy WitnessKey where
+    data AsType WitnessKey = AsWitnessKey
+    proxyToAsType _ = AsWitnessKey
+
+
+instance Key WitnessKey where
+
+    newtype VerificationKey WitnessKey =
+        WitnessVerificationKey (Shelley.VKey Shelley.Witness StandardCrypto)
+      deriving stock (Eq)
+      deriving (Show, IsString) via UsingRawBytesHex (VerificationKey WitnessKey)
+      deriving newtype (ToCBOR, FromCBOR)
+      deriving anyclass SerialiseAsCBOR
+
+    newtype SigningKey WitnessKey =
+        WitnessSigningKey (Shelley.SignKeyDSIGN StandardCrypto)
+      deriving (Show, IsString) via UsingRawBytesHex (SigningKey WitnessKey)
+      deriving newtype (ToCBOR, FromCBOR)
+      deriving anyclass SerialiseAsCBOR
+
+    deterministicSigningKey :: AsType WitnessKey -> Crypto.Seed -> SigningKey WitnessKey
+    deterministicSigningKey AsWitnessKey seed =
+        WitnessSigningKey (Crypto.genKeyDSIGN seed)
+
+    deterministicSigningKeySeedSize :: AsType WitnessKey -> Word
+    deterministicSigningKeySeedSize AsWitnessKey =
+        Crypto.seedSizeDSIGN proxy
+      where
+        proxy :: Proxy (Shelley.DSIGN StandardCrypto)
+        proxy = Proxy
+
+    getVerificationKey :: SigningKey WitnessKey -> VerificationKey WitnessKey
+    getVerificationKey (WitnessSigningKey sk) =
+        WitnessVerificationKey (Shelley.VKey (Crypto.deriveVerKeyDSIGN sk))
+
+    verificationKeyHash :: VerificationKey WitnessKey -> Hash WitnessKey
+    verificationKeyHash (WitnessVerificationKey vkey) =
+        WitnessKeyHash (Shelley.hashKey vkey)
+
+
+instance SerialiseAsRawBytes (VerificationKey WitnessKey) where
+    serialiseToRawBytes (WitnessVerificationKey (Shelley.VKey vk)) =
+      Crypto.rawSerialiseVerKeyDSIGN vk
+
+    deserialiseFromRawBytes (AsVerificationKey AsWitnessKey) bs =
+      WitnessVerificationKey . Shelley.VKey <$>
+        Crypto.rawDeserialiseVerKeyDSIGN bs
+
+instance SerialiseAsRawBytes (SigningKey WitnessKey) where
+    serialiseToRawBytes (WitnessSigningKey sk) =
+      Crypto.rawSerialiseSignKeyDSIGN sk
+
+    deserialiseFromRawBytes (AsSigningKey AsWitnessKey) bs =
+      WitnessSigningKey <$> Crypto.rawDeserialiseSignKeyDSIGN bs
+
+
+newtype instance Hash WitnessKey =
+    WitnessKeyHash (Shelley.KeyHash Shelley.Witness StandardCrypto)
+  deriving stock (Eq, Ord)
+  deriving (Show, IsString) via UsingRawBytesHex (Hash PaymentKey)
+
+instance SerialiseAsRawBytes (Hash WitnessKey) where
+    serialiseToRawBytes (WitnessKeyHash (Shelley.KeyHash vkh)) =
+      Crypto.hashToBytes vkh
+
+    deserialiseFromRawBytes (AsHash AsWitnessKey) bs =
+      WitnessKeyHash . Shelley.KeyHash <$> Crypto.hashFromBytes bs
+
+instance HasTextEnvelope (VerificationKey WitnessKey) where
+    textEnvelopeType _ = "WitnessVerificationKey_"
+                      <> fromString (Crypto.algorithmNameDSIGN proxy)
+      where
+        proxy :: Proxy (Shelley.DSIGN StandardCrypto)
+        proxy = Proxy
+
+instance HasTextEnvelope (SigningKey WitnessKey) where
+    textEnvelopeType _ = "WitnessSigningKey_"
+                      <> fromString (Crypto.algorithmNameDSIGN proxy)
+      where
+        proxy :: Proxy (Shelley.DSIGN StandardCrypto)
+        proxy = Proxy
 
 --
 -- stake pool keys

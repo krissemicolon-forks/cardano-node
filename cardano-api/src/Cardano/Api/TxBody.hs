@@ -52,6 +52,7 @@ module Cardano.Api.TxBody (
     TxMetadataInEra(..),
     TxAuxScripts(..),
     TxAuxScriptData(..),
+    TxRequiredScriptSignatures(..),
     TxWithdrawals(..),
     TxCertificates(..),
     TxUpdateProposal(..),
@@ -643,6 +644,19 @@ auxScriptsSupportedInEra MaryEra    = Just AuxScriptsInMaryEra
 auxScriptsSupportedInEra AlonzoEra  = Just AuxScriptsInAlonzoEra
 
 
+-- | A representation of whether the era supports Plutus
+-- scripts optionally requiring signatures.
+--
+-- Required script signatures are supported from the Alonzo era onwards.
+--
+data TxRequiredScriptSignaturesSupportedInEra era where
+
+     RequiredScriptSignaturesInAlonzoEra :: TxRequiredScriptSignaturesSupportedInEra AlonzoEra
+
+
+deriving instance Eq   (TxRequiredScriptSignaturesSupportedInEra era)
+deriving instance Show (TxRequiredScriptSignaturesSupportedInEra era)
+
 -- | A representation of whether the era supports multi-asset transactions.
 --
 -- The Mary and subsequent eras support multi-asset transactions.
@@ -869,6 +883,20 @@ data TxAuxScripts era where
 deriving instance Eq   (TxAuxScripts era)
 deriving instance Show (TxAuxScripts era)
 
+-- ----------------------------------------------------------------------------
+-- Optionally required signatures (era-dependent)
+--
+
+data TxRequiredScriptSignatures era where
+
+  TxRequiredScriptSignaturesNone :: TxRequiredScriptSignatures era
+
+  TxRequiredScriptSignatures     :: TxRequiredScriptSignaturesSupportedInEra era
+                                 -> [Hash WitnessKey]
+                                 -> TxRequiredScriptSignatures era
+
+deriving instance Eq   (TxRequiredScriptSignatures era)
+deriving instance Show (TxRequiredScriptSignatures era)
 
 -- ----------------------------------------------------------------------------
 -- Auxiliary script data (era-dependent)
@@ -967,6 +995,7 @@ data TxBodyContent build era =
                             TxValidityUpperBound era),
        txMetadata       :: TxMetadataInEra era,
        txAuxScripts     :: TxAuxScripts era,
+       txReqScriptSigs  :: TxRequiredScriptSignatures era,
      --txAuxScriptData  :: TxAuxScriptData era, -- TODO alonzo
        txWithdrawals    :: TxWithdrawals  build era,
        txCertificates   :: TxCertificates build era,
@@ -1276,6 +1305,7 @@ fromLedgerTxBody era body mAux = do
       , txUpdateProposal = fromLedgerTxUpdateProposal era body
       , txMintValue
       , txMetadata
+      , txReqScriptSigs  = fromRequiredScriptSignatures era body
       , txAuxScripts
       }
   where
@@ -1460,6 +1490,19 @@ fromLedgerTxAuxiliaryData era (Just auxData) =
   where
     (ms, ss) = fromLedgerAuxiliaryData era auxData
 
+
+fromRequiredScriptSignatures
+  :: ShelleyBasedEra era
+  -> Ledger.TxBody (ShelleyLedgerEra era)
+  -> TxRequiredScriptSignatures era
+fromRequiredScriptSignatures sbe body =
+  case sbe of
+    ShelleyBasedEraShelley -> TxRequiredScriptSignaturesNone
+    ShelleyBasedEraAllegra -> TxRequiredScriptSignaturesNone
+    ShelleyBasedEraMary -> TxRequiredScriptSignaturesNone
+    ShelleyBasedEraAlonzo ->
+      TxRequiredScriptSignatures RequiredScriptSignaturesInAlonzoEra
+        . map WitnessKeyHash . Set.toList $ Alonzo.reqSignerHashes body
 
 fromLedgerTxWithdrawals
   :: ShelleyBasedEra era
@@ -2280,6 +2323,7 @@ makeByronTransactionBodyContent txIns txOuts =
                         TxValidityNoUpperBound
                           ValidityNoUpperBoundInByronEra),
     txMetadata       = TxMetadataNone,
+    txReqScriptSigs  = TxRequiredScriptSignaturesNone,
     txAuxScripts     = TxAuxScriptsNone,
     txWithdrawals    = TxWithdrawalsNone,
     txCertificates   = TxCertificatesNone,

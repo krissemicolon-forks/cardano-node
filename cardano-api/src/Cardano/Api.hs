@@ -175,6 +175,7 @@ module Cardano.Api (
     TxMetadataInEra(..),
     TxAuxScripts(..),
     TxAuxScriptData(..),
+    TxRequiredScriptSignatures(..),
     TxWithdrawals(..),
     TxCertificates(..),
     TxUpdateProposal(..),
@@ -534,7 +535,7 @@ import           Cardano.Api.Modes
 import           Cardano.Api.NetworkId
 import           Cardano.Api.OperationalCertificate
 import           Cardano.Api.ProtocolParameters
-import           Cardano.Api.Query (SlotsInEpoch(..), SlotsToEpochEnd(..), slotToEpoch)
+import           Cardano.Api.Query (SlotsInEpoch (..), SlotsToEpochEnd (..), slotToEpoch)
 import           Cardano.Api.Script
 import           Cardano.Api.SerialiseBech32
 import           Cardano.Api.SerialiseCBOR
