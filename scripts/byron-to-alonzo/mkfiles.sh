@@ -319,6 +319,14 @@ echo
 ls -1 shelley/*
 echo "====================================================================="
 
+#Update shelley genesis with Alonzo fields. TODO: Alonzo need to remove this and update genesis create
+# such that it generates a stand alone Alonzo genesis file
+alonzogenesisparams='.+ {adaPerUTxOWord: 0, executionPrices: {prMem: 1, prSteps: 1}, maxTxExUnits: {exUnitsMem: 1, exUnitsSteps: 1}, maxBlockExUnits: {exUnitsMem: 1, exUnitsSteps: 1}, maxValueSize: 1000, collateralPercentage: 100, maxCollateralInputs: 1}'
+alonzogenesis=$(jq "${alonzogenesisparams}" < shelley/genesis.json)
+echo "${alonzogenesis}" > shelley/genesis.json
+echo "TestEnableDevelopmentHardForkEras: True" >> configuration.yaml
+echo "TestEnableDevelopmentNetworkProtocols: True" >> configuration.yaml
+
 echo "Generated genesis.json:"
 echo
 cat shelley/genesis.json
