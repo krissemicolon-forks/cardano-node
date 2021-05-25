@@ -14,6 +14,7 @@ import qualified Prelude
 
 import           Data.Aeson (Value (..), object, toJSON, (.=))
 import qualified Data.Aeson as Aeson
+import qualified Data.Map.Strict as Map
 import           Data.Yaml (array)
 import           Data.Yaml.Pretty (defConfig, encodePretty, setConfCompare)
 
@@ -154,7 +155,65 @@ friendlyStakeReference = \case
 friendlyUpdateProposal :: TxUpdateProposal era -> Aeson.Value
 friendlyUpdateProposal = \case
   TxUpdateProposalNone -> Null
-  TxUpdateProposal _ p -> String $ textShow p
+  TxUpdateProposal _ (UpdateProposal parameterUpdates epoch) ->
+    object
+      [ "epoch" .= epoch
+      , "updates" .=
+        [ object
+            [ "genesis key hash" .= serialiseToRawBytesHexText genesisKeyHash
+            , "update" .= friendlyProtocolParametersUpdate parameterUpdate
+            ]
+        | (genesisKeyHash, parameterUpdate) <- Map.assocs parameterUpdates
+        ]
+      ]
+
+friendlyProtocolParametersUpdate :: ProtocolParametersUpdate -> Aeson.Value
+friendlyProtocolParametersUpdate
+  ProtocolParametersUpdate
+    { protocolUpdateProtocolVersion
+    , protocolUpdateDecentralization
+    , protocolUpdateExtraPraosEntropy
+    , protocolUpdateMaxBlockHeaderSize
+    , protocolUpdateMaxBlockBodySize
+    , protocolUpdateMaxTxSize
+    , protocolUpdateTxFeeFixed
+    , protocolUpdateTxFeePerByte
+    , protocolUpdateMinUTxOValue
+    , protocolUpdateStakeAddressDeposit
+    , protocolUpdateStakePoolDeposit
+    , protocolUpdateMinPoolCost
+    , protocolUpdatePoolRetireMaxEpoch
+    , protocolUpdateStakePoolTargetNum
+    , protocolUpdatePoolPledgeInfluence
+    , protocolUpdateMonetaryExpansion
+    , protocolUpdateTreasuryCut
+    } =
+  object . catMaybes $
+    [ protocolUpdateProtocolVersion <&> \(major, minor) ->
+        "protocol version" .= (textShow major <> "." <> textShow minor)
+    , protocolUpdateDecentralization <&>
+        ("decentralization" .=) . friendlyRational
+    , protocolUpdateExtraPraosEntropy <&>
+        ("extra Praos entropy" .=) . maybe "reset" toJSON
+    , protocolUpdateMaxBlockHeaderSize <&> ("max block header size"    .=)
+    , protocolUpdateMaxBlockBodySize   <&> ("max block body size"      .=)
+    , protocolUpdateMaxTxSize          <&> ("max transaction size"     .=)
+    , protocolUpdateTxFeeFixed         <&> ("fixed transaction fee"    .=)
+    , protocolUpdateTxFeePerByte       <&> ("transaction fee per byte" .=)
+    , protocolUpdateMinUTxOValue <&> ("min UTxO value" .=) . friendlyLovelace
+    , protocolUpdateStakeAddressDeposit <&>
+        ("stake address deposit" .=) . friendlyLovelace
+    , protocolUpdateStakePoolDeposit <&>
+        ("stake pool deposit" .=) . friendlyLovelace
+    , protocolUpdateMinPoolCost <&> ("min pool cost" .=) . friendlyLovelace
+    , protocolUpdatePoolRetireMaxEpoch  <&> ("max pool retire epoch"    .=)
+    , protocolUpdateStakePoolTargetNum  <&> ("stake pool target number" .=)
+    , protocolUpdatePoolPledgeInfluence <&>
+        ("pool pledge influence" .=) . friendlyRational
+    , protocolUpdateMonetaryExpansion <&>
+        ("monetary expansion" .=) . friendlyRational
+    , protocolUpdateTreasuryCut <&> ("treasury cut" .=) . friendlyRational
+    ]
 
 friendlyCertificates :: TxCertificates ViewTx era -> Aeson.Value
 friendlyCertificates = \case

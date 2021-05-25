@@ -61,6 +61,7 @@ golden_view_shelley = let
     , "stake_pool_deregistration_certificate"
     , "stake_pool_registration_certificate"
     ]
+  updateProposalFile = "test/data/golden/shelley/update-proposal"
   in
   propertyOnce $
   moduleWorkspace "tmp" $ \tempDir -> do
@@ -80,6 +81,7 @@ golden_view_shelley = let
         , "--invalid-hereafter", "33"
         , "--withdrawal"
         , "stake_test1up00fz9lyqs5sjks82k22eqz7a9srym9vysjgp3h2ua2v2cm522kg+42"
+        , "--update-proposal-file", updateProposalFile
         , "--out-file", transactionBodyFile
         ]
         ++
