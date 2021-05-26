@@ -32,6 +32,7 @@ import qualified Data.Time.Clock as Time
 import           Ouroboros.Network.Block (BlockNo(..), SlotNo(..))
 
 import           Data.Accum
+import           Data.Distribution
 import           Cardano.Profile
 import           Cardano.Unlog.LogObject
 import           Cardano.Unlog.Resources
@@ -152,6 +153,26 @@ data BlockEvents
 -- | Ordered list of all block events of a chain.
 type ChainBlockEvents
   =  [BlockEvents]
+
+mapChainToBlockObservationCDF ::
+     (BlockObservation -> Maybe UTCTime)
+  -> ChainBlockEvents
+  -> [PercSpec Float]
+  -> Distribution Float NominalDiffTime
+mapChainToBlockObservationCDF proj cbe percs =
+  undefined
+ where
+   allDistributions :: [(BlockEvents, Distribution Float NominalDiffTime)]
+   allDistributions = fmap (fmap $ computeDistribution percs) allObservations
+
+   allObservations :: [(BlockEvents, Seq NominalDiffTime)]
+   allObservations = mapMaybe blockObservations cbe
+
+   blockObservations :: BlockEvents -> Maybe (BlockEvents, Seq NominalDiffTime)
+   blockObservations be =
+     (be,)
+     . Seq.fromList
+     . fmap (`Time.diffUTCTime` beSlotStart be) <$> mapM proj (beObservations be)
 
 blockProp :: ChainInfo -> [(JsonLogfile, [LogObject])] -> IO ChainBlockEvents
 blockProp ci xs = do
