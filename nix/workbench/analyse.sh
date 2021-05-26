@@ -1,7 +1,9 @@
 usage_analyse() {
      usage "analyse" "Analyse cluster runs" <<EOF
-    block-propagation RUN-NAME
-                          Block propagation analysis for the entire cluster
+    block-propagation [--reanalyse] RUN-NAME
+                          Block propagation analysis for the entire cluster.
+                            Passing --reanalyse will skip the preparatory steps
+                            and launch 'locli' directly
 
     machine-timeline RUN-NAME MACH-NAME
                           Produce a general performance timeline for MACH-NAME
@@ -15,6 +17,13 @@ local op=${1:-$(usage_analyse)}; shift
 case "$op" in
     block-propagation | bp )
         local usage="USAGE: wb analyse $op [RUN-NAME=current]"
+
+        local skip_preparation=
+        while test $# -gt 0
+        do case "$1" in
+               --reanalyse | --re ) skip_preparation='true';;
+               * ) break;; esac; shift; done
+
         local name=${1:-current}
         local dir=$(run get "$name")
         local adir=$dir/analysis
@@ -23,8 +32,10 @@ case "$op" in
 
         ## 0. subset what we care about into the keyfile
         local keyfile=$adir/substring-keys
-        locli analyse substring-keys | grep -v 'Temporary modify' > "$keyfile"
-        cat >>"$keyfile" <<EOF
+        if test -z "$skip_preparation" -a -f "$keyfile"
+        then
+            locli analyse substring-keys | grep -v 'Temporary modify' > "$keyfile"
+            cat >>"$keyfile" <<EOF
 TraceForgedBlock
 AddedToCurrentChain
 TraceChainSyncServerReadBlocked.AddBlock
@@ -33,23 +44,28 @@ TraceBlockFetchServerSendBlock
 TraceDownloadedHeader
 CompletedBlockFetch
 EOF
+        fi
+
         ## 1. enumerate logs, filter by keyfile & consolidate
         local logdirs=("$dir"/node-*/)
 
-        msg "filtering logs in: $dir/node-* "
-        local jq_args=(
-            --sort-keys
-            --compact-output
-            $(wb backend lostream-fixup-jqargs "$dir")
-            ' delpaths([["app"],["env"],["loc"],["msg"],["ns"],["sev"]])
-            '"$(wb backend lostream-fixup-jqexpr)"
-        )
-        for d in "${logdirs[@]}"
-        do ## TODO: supervisor-specific logfile layout
-           grep -hFf "$keyfile" $(ls "$d"/stdout* | tac) | jq "${jq_args[@]}" > \
+        if test -z "$skip_preparation" -a -n "$(ls "$adir"/logs-node-*.flt.json)"
+        then
+            msg "filtering logs in: $dir/node-* "
+            local jq_args=(
+                --sort-keys
+                --compact-output
+                $(wb backend lostream-fixup-jqargs "$dir")
+                ' delpaths([["app"],["env"],["loc"],["msg"],["ns"],["sev"]])
+                '"$(wb backend lostream-fixup-jqexpr)"
+            )
+            for d in "${logdirs[@]}"
+            do ## TODO: supervisor-specific logfile layout
+                grep -hFf "$keyfile" $(ls "$d"/stdout* | tac) | jq "${jq_args[@]}" > \
                 "$adir"/logs-$(basename "$d").flt.json &
-        done
-        wait
+            done
+            wait
+        fi
 
         msg "log sizes:  (files: $(ls "$adir"/*.flt.json | wc -l), lines: $(cat "$adir"/*.flt.json | wc -l))"
 
